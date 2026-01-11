@@ -8,7 +8,7 @@ MODEL = "intfloat/multilingual-e5-base"
 CSV_PATH = "data/jpmemes.csv"
 EPS = 1e-12
 
-# よく使うネットスラングのホワイトリスト - 短いけどOK
+# よく使うネットスラング - 短いけどOK
 ALLOW_SHORT = {
     "lol", "lmao", "rofl", "omg", "wtf", "idk", "ikr", "ngl", "fr", "tbh",
     "sus", "cap", "bet", "bruh", "gg", "w", "l"
@@ -16,7 +16,7 @@ ALLOW_SHORT = {
 
 @st.cache_resource
 def load_model():
-    # 一回だけロードすればstreamlitがキャッシュしてくれる
+    # 一回だけロードすればキャッシュできるー(kd
     return SentenceTransformer(MODEL)
 
 def norm_rows(x):
@@ -39,13 +39,13 @@ def load_data_and_emb(csv_mtime):
 
     df["jp_text"] = df["jp_text"].fillna("").astype(str)
 
-    # sourceは必須じゃないから念のため
+    # sourceは必須じゃないから念のため〜
     if "source" in df.columns:
         df["source"] = df["source"].fillna("").astype(str)
     else:
         df["source"] = ""
 
-    # passageを組み立てる
+    # passageを組み立てる∧( 'Θ' )∧
     passages = []
     for idx, row in df.iterrows():
         txt = row["jp_text"].strip()
@@ -71,11 +71,11 @@ def embed_query(model, q):
     """クエリをベクトル化"""
     q = q.strip()
 
-    # 2パターン試してみる
+    # 2パターン試してみる＾＾
     v1 = model.encode([f"query: {q}"], show_progress_bar=False)
     v2 = model.encode([q], show_progress_bar=False)
 
-    # 平均取ったら精度上がった気がする（要検証）
+    # 平均取ったら精度上がった気がする（要検証）˚✧₊⁎❝᷀ົཽ≀ˍ̮ ❝᷀ົཽ⁎⁺˳✧༚
     combined = (v1 + v2) / 2.0
     combined = norm_rows(combined)
 
@@ -85,7 +85,7 @@ def search_topk(query_vec, emb, k):
     """コサイン類似度でソート"""
     scores = emb.dot(query_vec)
 
-    # kが変な値来ないように
+    # kが変な値来ないように˚✧₊⁎❝᷀ົཽ≀ˍ̮ ❝᷀ົཽ⁎⁺˳✧༚
     k = min(k, len(scores))
     if k <= 0:
         return np.array([]), np.array([])
@@ -101,7 +101,7 @@ def junk(q: str) -> bool:
     if len(q) < 3:
         return True
 
-    # 英数字が少なすぎたらNG
+    # 英数字が少なすぎたらNG( ͡° ͜ʖ ͡°)
     alnum_count = sum(1 for c in q if c.isalnum())
     threshold = max(2, int(len(q) * 0.3))
 
@@ -112,7 +112,7 @@ def junk(q: str) -> bool:
 st.set_page_config(page_title="EN → JP Meme Search", layout="wide")
 st.title("EN → JP meme search")
 
-# ファイルチェック
+# ファイルcheck
 if not os.path.exists(CSV_PATH):
     st.error(f"CSV file not found: {CSV_PATH}")
     st.stop()
@@ -121,14 +121,14 @@ if not os.path.exists(CSV_PATH):
 mtime = os.path.getmtime(CSV_PATH)
 data = load_data_and_emb(mtime)
 
-# サイドバー設定
+# サイドバーsetting
 with st.sidebar:
     st.header("Settings")
     k = st.slider("How many results", 1, 50, 12)
     min_score = st.slider("Match strictness", 0.0, 1.0, 0.55, 0.01)
     strict = st.checkbox("Ignore weird input", value=True)
 
-# 検索ボックス
+# 検索box!
 q = st.text_input(
     "Type English meme/slang",
     placeholder="cringe / no cap / that's so real / touch grass / delulu ..."
@@ -170,7 +170,7 @@ if st.button("Search", type="primary"):
         jp_text = data["jp_text"][i]
         source_tag = data["source"][i]
 
-        # カード風に表示
+        # カード風に表示(変更可能スー)
         with st.container():
             st.markdown(f"### Rank {rank} — match {score*100:.1f}%")
             st.write(jp_text)
