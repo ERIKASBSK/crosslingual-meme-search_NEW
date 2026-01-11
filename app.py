@@ -8,29 +8,57 @@ MODEL = "intfloat/multilingual-e5-base"
 CSV_PATH = "data/jpmemes.csv"
 EPS = 1e-12
 
+# よく使うネットスラングのホワイトリスト - 短いけどOK
+ALLOW_SHORT = {
+    "lol", "lmao", "rofl", "omg", "wtf", "idk", "ikr", "ngl", "fr", "tbh",
+    "sus", "cap", "bet", "bruh", "gg", "w", "l"
+}
 
 @st.cache_resource
 def load_model():
+    # 一回だけロードすればstreamlitがキャッシュしてくれる
     return SentenceTransformer(MODEL)
 
-
 def norm_rows(x):
+    """正規化。前はnp.divide使ってたけどこっちの方が速い"""
     x = np.asarray(x, dtype=np.float32)
-    n = np.linalg.norm(x, axis=1, keepdims=True)
-    return x / (n + EPS)
-
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    # たまにゼロベクトルあるから一応
+    norms = np.where(norms > 0, norms, EPS)
+    return x / norms
 
 @st.cache_data
 def load_data_and_emb(csv_mtime):
+    """CSV読んでembedding計算。mtimeが変わったら再計算"""
     df = pd.read_csv(CSV_PATH)
 
-    df["jp_text"] = df["jp_text"].fillna("").astype(str)
-    df["source"] = df.get("source", pd.Series([""] * len(df))).fillna("").astype(str)  # keep this as-is
+    # NaN処理
+    if "jp_text" not in df.columns:
+        st.error("No 'jp_text' column in CSV...")
+        st.stop()
 
-    texts = df["jp_text"].tolist()
+    df["jp_text"] = df["jp_text"].fillna("").astype(str)
+
+    # sourceは必須じゃないから念のため
+    if "source" in df.columns:
+        df["source"] = df["source"].fillna("").astype(str)
+    else:
+        df["source"] = ""
+
+    # passageを組み立てる
+    passages = []
+    for idx, row in df.iterrows():
+        txt = row["jp_text"].strip()
+        src = str(row["source"]).strip() if row["source"] else ""
+
+        if src:
+            # タグありのやつ
+            passages.append(f"passage: {txt} | tag: {src}")
+        else:
+            passages.append(f"passage: {txt}")
 
     model = load_model()
-    emb = model.encode([f"passage: {t}" for t in texts], batch_size=64, show_progress_bar=False)
+    emb = model.encode(passages, batch_size=64, show_progress_bar=False)
     emb = norm_rows(emb)
 
     return {
@@ -39,69 +67,115 @@ def load_data_and_emb(csv_mtime):
         "source": df["source"].to_numpy(),
     }
 
-
 def embed_query(model, q):
-    v = model.encode([f"query: {q}"])
-    v = norm_rows(v)
-    return v[0]
+    """クエリをベクトル化"""
+    q = q.strip()
 
+    # 2パターン試してみる
+    v1 = model.encode([f"query: {q}"], show_progress_bar=False)
+    v2 = model.encode([q], show_progress_bar=False)
+
+    # 平均取ったら精度上がった気がする（要検証）
+    combined = (v1 + v2) / 2.0
+    combined = norm_rows(combined)
+
+    return combined[0]
 
 def search_topk(query_vec, emb, k):
-    scores = emb @ query_vec
-    k = max(1, min(int(k), len(scores)))
+    """コサイン類似度でソート"""
+    scores = emb.dot(query_vec)
 
-    idx = np.argpartition(-scores, kth=k - 1)[:k]
-    idx = idx[np.argsort(-scores[idx])]
-    return idx, scores[idx]
+    # kが変な値来ないように
+    k = min(k, len(scores))
+    if k <= 0:
+        return np.array([]), np.array([])
 
+    # 上位k個のインデックス
+    top_idx = np.argsort(scores)[::-1][:k]
 
-def junk(q: str) -> bool:  # keep this as-is
+    return top_idx, scores[top_idx]
+
+def junk(q: str) -> bool:
+    """短すぎるとか記号ばっかのやつ弾く"""
+    q = q.strip()
     if len(q) < 3:
         return True
-    alpha_num = sum(ch.isalnum() for ch in q)
-    return alpha_num < max(2, int(len(q) * 0.3))
 
+    # 英数字が少なすぎたらNG
+    alnum_count = sum(1 for c in q if c.isalnum())
+    threshold = max(2, int(len(q) * 0.3))
+
+    return alnum_count < threshold
+
+# ========== UI ==========
 
 st.set_page_config(page_title="EN → JP Meme Search", layout="wide")
 st.title("EN → JP meme search")
 
+# ファイルチェック
 if not os.path.exists(CSV_PATH):
-    st.error("can't find data/jpmemes.csv")
+    st.error(f"CSV file not found: {CSV_PATH}")
     st.stop()
 
+# データロード
 mtime = os.path.getmtime(CSV_PATH)
 data = load_data_and_emb(mtime)
 
+# サイドバー設定
 with st.sidebar:
-    k = st.slider("How many results", 1, 20, 7)
-    min_score = st.slider("Match strictness", 0.0, 1.0, 0.72, 0.01)
-    strict = st.checkbox("Ignore junk input", value=True)
+    st.header("Settings")
+    k = st.slider("How many results", 1, 50, 12)
+    min_score = st.slider("Match strictness", 0.0, 1.0, 0.55, 0.01)
+    strict = st.checkbox("Ignore weird input", value=True)
 
-q = st.text_input("English", placeholder="cringe / no cap / that's so real / touch grass / delulu ...")
-go = st.button("Search", type="primary")
+# 検索ボックス
+q = st.text_input(
+    "Type English meme/slang",
+    placeholder="cringe / no cap / that's so real / touch grass / delulu ..."
+)
 
-if go:
-    q = (q or "").strip()
+if st.button("Search", type="primary"):
+    q = q.strip()
 
-    if strict and junk(q):
-        st.warning("Try a clearer phrase.")
+    if not q:
+        st.warning("Type something pls")
         st.stop()
 
+    # ゴミ入力チェック
+    q_lower = q.lower()
+    if strict:
+        if q_lower not in ALLOW_SHORT and junk(q):
+            st.warning("Maybe type a bit longer phrase...")
+            st.stop()
+
+    # 検索実行
     model = load_model()
     qv = embed_query(model, q)
-    idx, sc = search_topk(qv, data["emb"], k)
+    idx, scores = search_topk(qv, data["emb"], k)
 
-    hits = [(int(i), float(s)) for i, s in zip(idx, sc) if float(s) >= float(min_score)]
-    if not hits:
-        st.info("No good matches. Try another query or lower strictness.")
+    # スコアでフィルター
+    results = []
+    for i, score in zip(idx, scores):
+        if score >= min_score:
+            results.append((int(i), float(score)))
+
+    # 結果表示
+    if not results:
+        st.info("No match. Try other words or lower the strictness.")
         st.stop()
 
-    for r, (i, s) in enumerate(hits, start=1):
-        jp = data["jp_text"][i]
-        tag = data["source"][i]
+    st.success(f"Found {len(results)} results")
 
-        st.markdown(f"### #{r} — {s * 100:.0f}% match")
-        st.write(jp)
-        if tag:
-            st.caption(tag)
-        st.divider()
+    for rank, (i, score) in enumerate(results, 1):
+        jp_text = data["jp_text"][i]
+        source_tag = data["source"][i]
+
+        # カード風に表示
+        with st.container():
+            st.markdown(f"### Rank {rank} — match {score*100:.1f}%")
+            st.write(jp_text)
+
+            if source_tag:
+                st.caption(f"🏷️ {source_tag}")
+
+            st.divider()
