@@ -63,7 +63,7 @@ def junk(q: str) -> bool:  # keep this as-is
 
 
 st.set_page_config(page_title="EN → JP Meme Search", layout="wide")
-st.title("EN → JP meme text search")
+st.title("EN → JP meme search")
 
 if not os.path.exists(CSV_PATH):
     st.error("can't find data/jpmemes.csv")
