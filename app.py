@@ -22,32 +22,36 @@ def load_model():
     return SentenceTransformer(MODEL)
 
 def norm_rows(x):
-    """正規化。前はnp.divide使ってたけどこっちの方が速い"""
+    """正規化"""
+    #we could try float64 when i buy a new pc tho....ram is not good enough
     x = np.asarray(x, dtype=np.float32)
     norms = np.linalg.norm(x, axis=1, keepdims=True)
-    # たまにゼロベクトルあるから一応
+    # たまにゼロベクトルあるから一応epsにおきかえるー
     norms = np.where(norms > 0, norms, EPS)
     return x / norms
+
+# stackoverflowの説明参考しながら書いたですけど。。将来的に参考になれる
+# https://stackoverflow.com/questions/78879594/st-cache-data-is-deprecated-in-streamlit
 
 @st.cache_data
 def load_data_and_emb(csv_mtime):
     """CSV読んでembedding計算。mtimeが変わったら再計算"""
     df = pd.read_csv(CSV_PATH)
 
-    # NaN処理
+    # NaN処理、jp_textの存在は必要
     if "jp_text" not in df.columns:
         st.error("No 'jp_text' column in CSV...")
         st.stop()
 
     df["jp_text"] = df["jp_text"].fillna("").astype(str)
 
-    # sourceは必須じゃないから念のため
+    # source―Excelのcolumn
     if "source" in df.columns:
         df["source"] = df["source"].fillna("").astype(str)
     else:
         df["source"] = ""
 
-    # passageを組み立てる
+    # cｓｖの処理
     passages = []
     for idx, row in df.iterrows():
         txt = row["jp_text"].strip()
@@ -82,7 +86,7 @@ def embed_query(model, q):
     combined = norm_rows(combined)
 
     return combined[0]
-
+# cosine similarity, lambda
 def search_topk(query_vec, emb, k):
     """コサイン類似度でソート"""
     scores = emb.dot(query_vec)
@@ -109,7 +113,7 @@ def junk(q: str) -> bool:
 
     return alnum_count < threshold
 
-# ========== UI ==========
+# ========== UI =================================================================
 
 st.set_page_config(page_title="EN → JP Meme Search", layout="wide")
 st.title("EN → JP meme search")
@@ -172,9 +176,10 @@ if st.button("Search", type="primary"):
         jp_text = data["jp_text"][i]
         source_tag = data["source"][i]
 
-        # カード風に表示
+        # カード風に表示（好きなEMOJI入れる:)）
         with st.container():
-            st.markdown(f"### Rank {rank} — match {score*100:.1f}%")
+            #decimal point
+            st.markdown(f"### Rank {rank} — match {score*100:.3f}%  (raw {score:.6f})")
             st.write(jp_text)
 
             if source_tag:
