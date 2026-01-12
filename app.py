@@ -13,7 +13,7 @@ EPS = 1e-12
 # よく使うネットスラングリスト - 短いけどOK
 ALLOW_SHORT = {
     "lol", "lmao", "rofl", "omg", "wtf", "idk", "ikr", "ngl", "fr", "tbh",
-    "sus", "cap", "bet", "bruh", "gg", "w", "l"
+    "sus", "cap", "bet", "bruh", "gg", "w", "l", "nsfw", "jk", "pls", "thx", "wtf"
 }
 
 @st.cache_resource
