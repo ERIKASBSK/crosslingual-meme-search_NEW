@@ -164,7 +164,7 @@ with st.sidebar:
     k = st.slider("How many results", 1, 50, 12)
     min_score = st.slider("Match strictness", 0.0, 1.0, 0.55, 0.01)
     strict = st.checkbox("Ignore weird input", value=True)
-    use_mmr = st.checkbox("Use MMR(Testing...)", value=True)
+    use_mmr = st.checkbox("Use MMR(Under testing. Please refrain from use for now.)", value=True)
     mmr_lam = st.slider("MMR lambda", 0.50, 0.95, 0.75, 0.01)
 
 
@@ -224,7 +224,7 @@ if st.button("Search", type="primary"):
         source_tag = data["source"][i]
         img = str(data["img"][i]).strip()
 
-        # 表示用にスコアをもう一回計算（正規化してるからdotでOK + image 
+        # 表示用にスコアをもう一回計算（正規化してるからdotでOK + image no setting
         score = float(data["emb"][i].dot(qv))
 
         with st.container():
@@ -232,7 +232,9 @@ if st.button("Search", type="primary"):
 
             if img:
                 try:
-                    st.image(img, use_container_width=True)
+                    st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+                    st.image(img, width=320)
+                    st.markdown("</div>", unsafe_allow_html=True)
                 except Exception:
                     st.caption("🖼️ image link broken / blocked")
 
