@@ -45,23 +45,22 @@ def load_data_and_emb(csv_mtime):
 
     df["jp_text"] = df["jp_text"].fillna("").astype(str)
 
-    # source―Excelのcolumn
+    # source―Excelのcolumn+ img
     if "source" in df.columns:
         df["source"] = df["source"].fillna("").astype(str)
     else:
         df["source"] = ""
 
+    if "img" in df.columns:
+        df["img"] = df["img"].fillna("").astype(str)
+    else:
+        df["img"] = ""
+
     # cｓｖの処理
     passages = []
     for idx, row in df.iterrows():
         txt = row["jp_text"].strip()
-        src = str(row["source"]).strip() if row["source"] else ""
-
-        if src:
-            # タグありのやつ
-            passages.append(f"passage: {txt} | tag: {src}")
-        else:
-            passages.append(f"passage: {txt}")
+        passages.append(f"passage: {txt}")
 
     model = load_model()
     emb = model.encode(passages, batch_size=64, show_progress_bar=False)
@@ -71,21 +70,16 @@ def load_data_and_emb(csv_mtime):
         "emb": emb,
         "jp_text": df["jp_text"].to_numpy(),
         "source": df["source"].to_numpy(),
+        "img": df["img"].to_numpy(),
     }
 
 def embed_query(model, q):
-    """クエリをベクトル化"""
+    """E5安定版why its not accurate"""
     q = q.strip()
+    v = model.encode([f"query: {q}"], show_progress_bar=False)
+    v = norm_rows(v)
+    return v[0]
 
-    # 2パターン試してみる
-    v1 = model.encode([f"query: {q}"], show_progress_bar=False)
-    v2 = model.encode([q], show_progress_bar=False)
-
-    # 平均取ったら精度上がった気がする（要検証）
-    combined = (v1 + v2) / 2.0
-    combined = norm_rows(combined)
-
-    return combined[0]
 # cosine similarity, lambda
 def search_topk(query_vec, emb, k):
     """コサイン類似度でソート"""
@@ -100,6 +94,43 @@ def search_topk(query_vec, emb, k):
     top_idx = np.argsort(scores)[::-1][:k]
 
     return top_idx, scores[top_idx]
+
+def mmr_select(query_vec, emb, candidate_idx, k, lam=0.75):
+    """
+    λ（ラムダ）について
+    λが大きい -> 精度重視
+    λが小さい -> 多様性重視 
+    """
+    candidate_idx = list(map(int, candidate_idx))
+    if not candidate_idx or k <= 0:
+        return []
+
+    # relevance: cosine(query, doc) ≈ dot(query_vec, doc_vec)
+    rel = emb[candidate_idx].dot(query_vec)
+
+    selected = []
+
+    while len(selected) < k and candidate_idx:
+        if not selected:
+            best_pos = int(np.argmax(rel))
+        else:
+            cand_emb = emb[candidate_idx]     
+            sel_emb = emb[selected]           
+  
+            sim_to_selected = cand_emb.dot(sel_emb.T)   
+            max_sim = sim_to_selected.max(axis=1)       
+
+            mmr_scores = lam * rel - (1 - lam) * max_sim
+            best_pos = int(np.argmax(mmr_scores))
+
+        best_idx = candidate_idx[best_pos]
+        selected.append(best_idx)
+
+        
+        candidate_idx.pop(best_pos)
+        rel = np.delete(rel, best_pos)
+
+    return selected
 
 def junk(q: str) -> bool:
     """短すぎるとか記号ばっかのやつ弾く"""
@@ -133,6 +164,9 @@ with st.sidebar:
     k = st.slider("How many results", 1, 50, 12)
     min_score = st.slider("Match strictness", 0.0, 1.0, 0.55, 0.01)
     strict = st.checkbox("Ignore weird input", value=True)
+    use_mmr = st.checkbox("Use MMR(Testing...)", value=True)
+    mmr_lam = st.slider("MMR lambda", 0.50, 0.95, 0.75, 0.01)
+
 
 # 検索ボックス
 q = st.text_input(
@@ -154,35 +188,59 @@ if st.button("Search", type="primary"):
             st.warning("Maybe type a bit longer phrase...")
             st.stop()
 
-    # 検索実行
+    # ====== 検索実行するよ〜 ======
     model = load_model()
     qv = embed_query(model, q)
-    idx, scores = search_topk(qv, data["emb"], k)
 
-    # スコアでフィルター
-    results = []
-    for i, score in zip(idx, scores):
-        if score >= min_score:
-            results.append((int(i), float(score)))
+    # MMR使うなら候補は多めに取っとく（選べる余地が大事なの🥺）
+    candidate_pool = max(80, k * 10)
+    idx, scores = search_topk(qv, data["emb"], candidate_pool)
 
-    # 結果表示
-    if not results:
+    # スコア低すぎるのは先に落とすよ
+    cand = [(int(i), float(s)) for i, s in zip(idx, scores) if s >= min_score]
+
+    if not cand:
         st.info("No match. Try other words or lower the strictness.")
         st.stop()
 
-    st.success(f"Found {len(results)} results")
+    cand_idx = np.array([i for i, _ in cand], dtype=int)
 
-    for rank, (i, score) in enumerate(results, 1):
+    # MMR同じのばっか出る問題を回避するやつwara
+    if use_mmr:
+        final_idx = mmr_select(qv, data["emb"], cand_idx, k=k, lam=mmr_lam)
+    else:
+        # MMRなしなら普通に上からk個ね（素直ver）
+        final_idx = cand_idx[:k].tolist()
+
+    if not final_idx:
+        st.info("No match after filtering. Try lower strictness.")
+        st.stop()
+
+    st.success(f"Found {len(final_idx)} results")
+
+    # ====== 結果表示だよ〜 ======
+    for rank, i in enumerate(final_idx, 1):
         jp_text = data["jp_text"][i]
         source_tag = data["source"][i]
+        img = str(data["img"][i]).strip()
 
-        # カード風に表示（好きなEMOJI入れる:)）
+        # 表示用にスコアをもう一回計算（正規化してるからdotでOK + image 
+        score = float(data["emb"][i].dot(qv))
+
         with st.container():
-            #decimal point
-            st.markdown(f"### Rank {rank} — match {score*100:.3f}%  (raw {score:.6f})")
+            st.markdown(f"### Rank {rank} — match {score*100:.1f}%")
+
+            if img:
+                try:
+                    st.image(img, use_container_width=True)
+                except Exception:
+                    st.caption("🖼️ image link broken / blocked")
+
             st.write(jp_text)
 
             if source_tag:
                 st.caption(f"🏷️ {source_tag}")
 
             st.divider()
+
+
