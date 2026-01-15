@@ -38,12 +38,12 @@ A small Streamlit app that matches **English meme/slang queries** to **Japanese 
 - Streamlit UI + sidebar controls
 - Cached model + cached embeddings (recomputed when CSV changes)
 - Optional “Ignore weird input” filter for cleaner demos
-- Optional MMR reranking (diversity vs. relevance trade-off)
+- Optional MMR reranking (diversity vs. relevance trade-off) --*under testing
 
 ---
 
 ## Notes / Known limitations
 
-Embedding-based retrieval can show length / structure bias across languages.
+Embedding-based retrieval can show length / structure bias across languages.  
 For example, very short English queries sometimes retrieve short Japanese outputs that look plausible but are not the best semantic match.
 This project is a demo to explore those failure modes and iteration ideas.
