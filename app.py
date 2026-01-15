@@ -164,7 +164,7 @@ with st.sidebar:
     k = st.slider("How many results", 1, 50, 12)
     min_score = st.slider("Match strictness", 0.0, 1.0, 0.55, 0.01)
     strict = st.checkbox("Ignore weird input", value=True)
-    use_mmr = st.checkbox("Use MMR(Under testing. Please refrain from use for now.)", value=True)
+    use_mmr = st.checkbox("Use MMR(Under testing. Please refrain from use for now.)", value=False)
     mmr_lam = st.slider("MMR lambda", 0.50, 0.95, 0.75, 0.01)
 
 
