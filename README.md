@@ -18,7 +18,7 @@ My friend is also learning Japanese, so I made this goofy little tool so we can 
 A small Streamlit app that matches **English meme/slang queries** to **Japanese meme examples** using a multilingual sentence embedding model (**intfloat/multilingual-e5-base**) and cosine similarity.
 
 **Demo:** https://huggingface.co/spaces/Erikasbsk/crosslingual-meme-search-new
-
+:)
 ---
 
 ## What it does
