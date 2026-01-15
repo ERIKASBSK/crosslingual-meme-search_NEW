@@ -19,6 +19,7 @@ A small Streamlit app that matches **English meme/slang queries** to **Japanese 
 
 **Demo:** https://huggingface.co/spaces/Erikasbsk/crosslingual-meme-search-new
 :)
+
 ---
 
 ## What it does
