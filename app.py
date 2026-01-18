@@ -7,7 +7,7 @@ from sentence_transformers import SentenceTransformer
 MODEL = "intfloat/multilingual-e5-base"
 CSV_PATH = "data/jpmemes.csv"
 # epsはほぼ保険のようなもの、０だけじゃ分からないので、norm = 0するとプログラム自体爆発しちゃう
-# 詳しい説明はgoogle drive のノートでメモしましたから自分で復習しなー＞：０
+# 詳しい説明はgoogle drive のノートでメモしました
 EPS = 1e-12
 
 # よく使うネットスラングリスト - 短いけどOK
@@ -74,7 +74,7 @@ def load_data_and_emb(csv_mtime):
     }
 
 def embed_query(model, q):
-    """E5安定版why its not accurate"""
+    """E5安定版for the accuracy"""
     q = q.strip()
     v = model.encode([f"query: {q}"], show_progress_bar=False)
     v = norm_rows(v)
@@ -188,11 +188,11 @@ if st.button("Search", type="primary"):
             st.warning("Maybe type a bit longer phrase...")
             st.stop()
 
-    # ====== 検索実行するよ〜 ======
+    # ====== 検索実行するよ ======
     model = load_model()
     qv = embed_query(model, q)
 
-    # MMR使うなら候補は多めに取っとく（選べる余地が大事なの🥺）
+    # MMR使うなら候補は多めに取っとく（選べる余地が大事なの）
     candidate_pool = max(80, k * 10)
     idx, scores = search_topk(qv, data["emb"], candidate_pool)
 
@@ -205,11 +205,11 @@ if st.button("Search", type="primary"):
 
     cand_idx = np.array([i for i, _ in cand], dtype=int)
 
-    # MMR同じのばっか出る問題を回避するやつwara
+    # MMR同じのばっか出る問題を回避するやつ
     if use_mmr:
         final_idx = mmr_select(qv, data["emb"], cand_idx, k=k, lam=mmr_lam)
     else:
-        # MMRなしなら普通に上からk個ね（素直ver）
+        # MMRなしなら普通に上からk個ね
         final_idx = cand_idx[:k].tolist()
 
     if not final_idx:
