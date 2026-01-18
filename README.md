@@ -19,7 +19,7 @@ A small Streamlit app that matches **English meme/slang queries** to **Japanese 
 
 **Demo:** https://huggingface.co/spaces/Erikasbsk/crosslingual-meme-search-new  
 
-**Learning notes (NLP + CS theory):** https://github.com/ERIKASBSK/Learning-Portfolio/tree/main
+**Learning notes (NLP + CS theory):** [https://github.com/ERIKASBSK/Learning-Portfolio/tree/main](https://github.com/ERIKASBSK/Learning-Note/tree/main)
 
 ---
 
