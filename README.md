@@ -21,6 +21,8 @@ A small Streamlit app that matches **English meme/slang queries** to **Japanese 
 
 **Learning notes (NLP + CS theory):** [https://github.com/ERIKASBSK/Learning-Portfolio/tree/main](https://github.com/ERIKASBSK/Learning-Note/tree/main)
 
+**MEMO:** https://github.com/ERIKASBSK/Learning-Note/blob/main/Memo%20of%20meme%20research.md
+
 ---
 
 ## What it does
