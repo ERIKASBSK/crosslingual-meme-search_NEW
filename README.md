@@ -31,7 +31,7 @@ A small Streamlit app that matches **English meme/slang queries** to **Japanese 
 - Embeds the query with **E5** (`query:` prefix)
 - Embeds Japanese examples from a CSV with **E5** (`passage:` prefix)
 - Ranks results by **cosine similarity**
-- Optionally applies **MMR** to reduce near-duplicate outputs (diversity-aware ranking)
+- Optionally applies **MMR** to reduce near-duplicate outputs (diversity-aware ranking)*under testing
 
 ---
 
